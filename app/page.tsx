@@ -8,20 +8,19 @@ const today = daysOfTheWeek[new Date().getDay()];
 
 
 export default function App() {
-  return (<TaskList />);
+  // return (<TaskList />);
+  return (
+    <TabMenu tabNames={["To-Do", "Focus Timer"]} defaultTabIndex={0}>
+      <TaskList />
+      <Timer lockInTime={60*25} breakTime={60*5} />
+    </TabMenu>
+  );
 }
 
-function daysBetween(date1, date2) {
-
-  // The number of milliseconds in one day
-  const ONE_DAY = 1000 * 60 * 60 * 24;
-
-  // Calculate the difference in milliseconds
+function hoursBetween(date1, date2) {
+  const ONE_HOUR = 1000 * 60 * 60;
   const differenceMs = Math.abs(date1 - date2);
-
-  // Convert back to days and return
-  return Math.round(differenceMs / ONE_DAY);
-
+  return Math.round(differenceMs / ONE_HOUR);
 }
 
 function TaskList() {
@@ -47,12 +46,18 @@ function TaskList() {
   // Check if the last reset date is more than 7 days ago
   useEffect(() => {
     if (!localStorage.getItem("lastReset")) {
-      localStorage.setItem("lastReset", new Date().toISOString());
+      // set lastReset to the previous Monday at 00:00
+      const today = new Date();
+      const day = today.getDay();
+      const diff = day === 0 ? 6 : day - 1; // Adjust for Sunday being 0
+      const lastMonday = new Date(today.setDate(today.getDate() - diff));
+      lastMonday.setHours(0, 0, 0, 0);
+      localStorage.setItem("lastReset", lastMonday.toISOString());
     }
     else {
       const lastReset = new Date(localStorage.getItem("lastReset"));
       const today = new Date();
-      if (daysBetween(lastReset, today) > 7) {
+      if (hoursBetween(lastReset, today) > 7*24) {
         // Set all daily tasks to incomplete
         const newTasks = {...JSON.parse(localStorage.getItem("tasks"))};
         Object.keys(newTasks).forEach(key => {
@@ -63,7 +68,8 @@ function TaskList() {
           }
         });
         setTasks(newTasks);
-        localStorage.setItem("lastReset", today.toISOString());
+        // Set lastReset to 7 days from now
+        localStorage.setItem("lastReset", new Date(lastReset.getTime() + 1000 * 60 * 60 * 24 * 7).toISOString());
       }
     }
   }, []);
@@ -312,4 +318,122 @@ function NewTaskNameInput({ newTaskName, setNewTaskName }) {
       autoFocus={true}
     />
   );
+}
+
+function TabMenu( { tabNames, defaultTabIndex, children } ) {
+  const [selectedTab, setSelectedTab] = useState(defaultTabIndex);
+  const selectedTabStyle = "bg-blue-500 text-white";
+  const unselectedTabStyle = "bg-gray-100 text-gray-700 hover:bg-gray-200";
+
+  if (children.constructor !== Array) {
+    children = [children];
+  }
+
+  return (
+    <div className="p-8">
+      <div className="flex flex-row gap-4 mb-6">
+        {tabNames.map((tabName, index) => {
+          const isSelected = selectedTab === index;
+          return (
+            <button
+              key={tabName}
+              className={`${isSelected ? selectedTabStyle : unselectedTabStyle} px-6 py-2 rounded-lg border border-gray-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors`}
+              onClick={() => setSelectedTab(index)}
+            >
+              {tabName}
+            </button>
+          );
+        })}
+      </div>
+      {children.map((child, index) => (
+        <div key={index} style={{ display: selectedTab === index ? 'block' : 'none' }}>
+          {child}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function handleNotification(message) {
+  if (!("Notification" in window)) {
+    return;
+  }
+  else if (Notification.permission === "granted") {
+    console.log("Notification permission granted.");
+    const notification = new Notification(message, {body: ""});
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+  }
+  else if (Notification.permission !== "denied") {
+    Notification.requestPermission().then(function (permission) {
+      if (permission === "granted") {
+        const notification = new Notification(message, {body: ""});
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+        };
+      }
+    });
+  }
+}
+
+function Timer({ lockInTime, breakTime }) {
+  const [ticking, setTicking] = useState(false),
+        [timeRemaining, setTimeRemaining] = useState(lockInTime),
+        [isLockedIn, setIsLockedIn] = useState(true)
+   
+   useEffect(() => {
+    const timer = setTimeout(() => 
+      {
+        if (ticking) {
+          setTimeRemaining(timeRemaining-1);
+          if (timeRemaining === 0) {
+            setTicking(false);
+            setIsLockedIn(!isLockedIn);
+            setTimeRemaining(isLockedIn ? lockInTime : breakTime);
+
+            // Push notification
+            handleNotification(isLockedIn ? "Break Time!" : "Focus Time!");
+          }
+        }
+      }
+    , 1e3)
+    return () => clearTimeout(timer)
+   }, [timeRemaining, ticking])
+   
+   function handlePauseResume() {
+    setTicking(!ticking)
+   }
+
+   function handleReset() {
+    setTicking(false);
+    setTimeRemaining(lockInTime);
+    setIsLockedIn(true);
+   }
+
+   const timeRemainingColor = isLockedIn ? "text-red-500" : "text-green-500"
+
+return (
+  <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8">
+    <div className={`${timeRemainingColor} text-8xl font-bold font-mono`}>
+      {Math.floor(timeRemaining/60)}:{timeRemaining%60 < 10 ? '0' : ''}{timeRemaining%60}
+    </div>
+    <div className="flex gap-6">
+      <button 
+        onClick={handlePauseResume}
+        className="bg-blue-500 hover:bg-blue-600 text-white text-2xl w-16 h-16 rounded-full transition-colors"
+      >
+        {ticking ? "⏸" : "▶"}
+      </button>
+      <button 
+        onClick={handleReset}
+        className="bg-gray-500 hover:bg-gray-600 text-white text-2xl w-16 h-16 rounded-full transition-colors"
+      >
+        ↺
+      </button>
+    </div>
+  </div>
+);
 }
