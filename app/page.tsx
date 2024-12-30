@@ -12,7 +12,7 @@ export default function App() {
   return (
     <TabMenu tabNames={["To-Do", "Focus Timer"]} defaultTabIndex={0}>
       <TaskList />
-      <Timer lockInTime={10} breakTime={5} />
+      <Timer lockInTime={25*60} breakTime={5*60} />
     </TabMenu>
   );
 }
