@@ -12,7 +12,7 @@ export default function App() {
   return (
     <TabMenu tabNames={["To-Do", "Focus Timer"]} defaultTabIndex={0}>
       <TaskList />
-      <Timer lockInTime={60*25} breakTime={60*5} />
+      <Timer lockInTime={10} breakTime={5} />
     </TabMenu>
   );
 }
@@ -391,11 +391,12 @@ function Timer({ lockInTime, breakTime }) {
           setTimeRemaining(timeRemaining-1);
           if (timeRemaining === 0) {
             setTicking(false);
-            setIsLockedIn(!isLockedIn);
-            setTimeRemaining(isLockedIn ? lockInTime : breakTime);
+            setTimeRemaining(isLockedIn ? breakTime : lockInTime);
 
             // Push notification
             handleNotification(isLockedIn ? "Break Time!" : "Focus Time!");
+
+            setIsLockedIn(!isLockedIn);
           }
         }
       }
